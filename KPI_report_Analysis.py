@@ -294,83 +294,28 @@ def calculate_bias_score(trend_df, outlier_df):
     
     bias_df = trend_df.merge(outlier_count, on="Appraiser Name", how="left")
     bias_df["outlier_freq"] = bias_df["outlier_freq"].fillna(0)
-    
-    bias_df["bias_score"] = (
-        (bias_df["outlier_freq"] >= 4).astype(int) * 2 + 
-        (bias_df["trend_pattern"].str.contains("Decreasing|Increasing")).astype(int) * 1 +
-        (bias_df["trend_pattern"].str.contains("High consistency")).astype(int) * 1
-    )
-    
-    def score_outlier(freq):
-        if freq >= 6:
-            return 4   # บ่อยมาก
-        elif freq >= 4:
-            return 3   # บ่อย
-        elif freq >= 2:
-            return 2   # กลาง
-        elif freq >= 1:
-            return 1   # ต่ำ
-        else:
-            return 0   
         
-    def score_consistency(pattern):
-        if "High consistency" in pattern:
-            return 2
-        elif "Medium consistency" in pattern:
-            return 1
-        else:  # Low consistency
-            return 0
-        
-    def score_direction(pattern):
-        if "Increasing" in pattern:
-            return 1   # อวย
-        elif "Decreasing" in pattern:
-            return 1   # กดคะแนน
-        else:
-            return 0   # Stable
-        
-    bias_df["outlier_score"] = bias_df["outlier_freq"].apply(score_outlier)
-    bias_df["consistency_score"] = bias_df["trend_pattern"].apply(score_consistency)
-    bias_df["direction_score"] = bias_df["trend_pattern"].apply(score_direction)
+    # ตรวจว่าเป็น Stable หรือไม่
+    bias_df["is_stable"] = bias_df["trend_pattern"].str.contains("Stable")
 
-    bias_df["bias_score"] = (
-        bias_df["outlier_score"] * 1.5 +     # น้ำหนักพฤติกรรมผิดปกติ
-        bias_df["consistency_score"] * 1.2 + # น้ำหนักความสม่ำเสมอ
-        bias_df["direction_score"] * 1.0     # น้ำหนักทิศทางอวย/กด
-    ).round(2)
+    # -------------------------
+    # จัดกลุ่ม 3 กรณี
+    # -------------------------
+    def classify_bias_case(row):
+        stable = row["is_stable"]
+        has_outlier = row["outlier_freq"] > 0
 
-    def classify_bias_risk(score):
-        if score >= 6:
-            return "High Risk"
-        elif score >= 3:
-            return "Medium Risk"
-        else:
-            return "Low Risk"
-    
-    bias_df["BIAS_DETECTION"] = bias_df["bias_score"].apply(classify_bias_risk)
-
-    def generate_bias_note(row):
-        pattern = row["trend_pattern"]
-        outlier_freq = row["outlier_freq"]
-        bias_score = row["bias_score"]
-
-        if ("Stable" in pattern and 
-            "Low consistency" in pattern and 
-            outlier_freq >= 4):
-
-            return " คะแนนมีความสม่ำเสมอ แต่มี outlier สูง อาจให้คะแนนต่ำกว่าคนอื่นอย่างคงที่ ควรตรวจสอบเชิงคุณภาพ"
-
-        if bias_score >= 6:
-            return " ตรวจพบความเสี่ยง Bias สูง ควร Audit พฤติกรรมการให้คะแนนย้อนหลัง"
-
-        if bias_score >= 3:
-            return " พบสัญญาณ Bias บางส่วน ควรติดตามแนวโน้ม"
-
-        return " ยังไม่พบสัญญาณ Bias ที่ชัดเจน"
+        if stable and has_outlier:
+            return "ตรวจพบความผิดปกติ 1: ให้คะแนนสม่ำเสมอ แต่มี Outlier"
+        elif not stable and has_outlier:
+            return "ตรวจพบความผิดปกติ 2: ให้คะแนนไม่สม่ำเสมอ และมี Outlier"
+        elif not stable and not has_outlier:
+            return "ตรวจพบความผิดปกติ 3: ให้คะแนนสม่ำเสมอ  แต่มี Outlier"
+        elif stable and not has_outlier:
+            return "ไม่พบความผิดปกติ"
 
     
-    bias_df["bias_note"] = bias_df.apply(generate_bias_note, axis=1)
-    bias_df = bias_df.sort_values("bias_score", ascending=False)
+    bias_df["BIAS_DETECTION"] = bias_df.apply(classify_bias_case, axis=1)
     
     return bias_df
 
@@ -477,24 +422,30 @@ else:
                 # 3. Bias Detection
                 st.markdown("## 3. Bias Detection")
                 bias_df = calculate_bias_score(trend_df, outlier_df)
-                
-                col1, col2, col3 = st.columns(3)
+
+                col1, col2, col3, col4 = st.columns(4)
+
                 with col1:
-                    high_risk = len(bias_df[bias_df['BIAS_DETECTION'] == 'High Risk'])
-                    st.metric("High Risk", high_risk)
+                    case1 = len(bias_df[bias_df["BIAS_DETECTION"] == "ตรวจพบความผิดปกติ 1: ให้คะแนนสม่ำเสมอ แต่มี Outlier"])
+                    st.metric("ให้คะแนนสม่ำเสมอ แต่มี Outlier", case1)
+
                 with col2:
-                    medium_risk = len(bias_df[bias_df['BIAS_DETECTION'] == 'Medium Risk'])
-                    st.metric("Medium Risk", medium_risk)
+                    case2 = len(bias_df[bias_df["BIAS_DETECTION"] == "ตรวจพบความผิดปกติ 2: ให้คะแนนไม่สม่ำเสมอ และมี Outlier"])
+                    st.metric("ให้คะแนนไม่สม่ำเสมอ และมี Outlier", case2)
+
                 with col3:
-                    low_risk = len(bias_df[bias_df['BIAS_DETECTION'] == 'Low Risk'])
-                    st.metric("Low Risk", low_risk)
+                    case3 = len(bias_df[bias_df["BIAS_DETECTION"] == "ตรวจพบความผิดปกติ 3: ให้คะแนนสม่ำเสมอ  แต่มี Outlier"])
+                    st.metric("ให้คะแนนสม่ำเสมอ แต่มี Outlier", case3)
+
+                with col4:
+                    case4 = len(bias_df[bias_df["BIAS_DETECTION"] == "ไม่พบความผิดปกติ"])
+                    st.metric("ไม่พบความผิดปกติ", case4)
                 
                 # แสดงตาราง Bias
                 st.dataframe(
                     bias_df[[
                         'Appraiser Name', 'evaluation_time_count', 'score_timeline',
-                        'trend_pattern', 'outlier_freq', 'outlier_score', 'consistency_score',
-                        'direction_score', 'bias_score', 'BIAS_DETECTION', 'bias_note',
+                        'trend_pattern', 'outlier_freq', 'BIAS_DETECTION',
                     ]],
                     use_container_width=True
                 )
