@@ -306,13 +306,13 @@ def calculate_bias_score(trend_df, outlier_df):
         has_outlier = row["outlier_freq"] > 0
 
         if stable and has_outlier:
-            return "ตรวจพบความผิดปกติ 1: ให้คะแนนสม่ำเสมอ แต่มี Outlier"
+            return "case 1: ให้คะแนนสม่ำเสมอ | มี Outlier"
         elif not stable and has_outlier:
-            return "ตรวจพบความผิดปกติ 2: ให้คะแนนไม่สม่ำเสมอ และมี Outlier"
+            return "case 2: ให้คะแนนไม่สม่ำเสมอ | มี Outlier"
         elif not stable and not has_outlier:
-            return "ตรวจพบความผิดปกติ 3: ให้คะแนนสม่ำเสมอ  แต่มี Outlier"
+            return "case 3: ให้คะแนนไม่สม่ำเสมอ | ไม่มี Outlier"
         elif stable and not has_outlier:
-            return "ไม่พบความผิดปกติ"
+            return "case 4: ให้คะแนนสม่ำเสมอ | ไม่มี Outlier"
 
     
     bias_df["BIAS_DETECTION"] = bias_df.apply(classify_bias_case, axis=1)
@@ -426,26 +426,25 @@ else:
                 col1, col2, col3, col4 = st.columns(4)
 
                 with col1:
-                    case1 = len(bias_df[bias_df["BIAS_DETECTION"] == "ตรวจพบความผิดปกติ 1: ให้คะแนนสม่ำเสมอ แต่มี Outlier"])
-                    st.metric("ให้คะแนนสม่ำเสมอ แต่มี Outlier", case1)
+                    case1 = len(bias_df[bias_df["BIAS_DETECTION"] == "case 1: ให้คะแนนสม่ำเสมอ | มี Outlier"])
+                    st.metric("case 1", case1)
 
                 with col2:
-                    case2 = len(bias_df[bias_df["BIAS_DETECTION"] == "ตรวจพบความผิดปกติ 2: ให้คะแนนไม่สม่ำเสมอ และมี Outlier"])
-                    st.metric("ให้คะแนนไม่สม่ำเสมอ และมี Outlier", case2)
+                    case2 = len(bias_df[bias_df["BIAS_DETECTION"] == "case 2: ให้คะแนนไม่สม่ำเสมอ | มี Outlier"])
+                    st.metric("case 2", case2)
 
                 with col3:
-                    case3 = len(bias_df[bias_df["BIAS_DETECTION"] == "ตรวจพบความผิดปกติ 3: ให้คะแนนสม่ำเสมอ  แต่มี Outlier"])
-                    st.metric("ให้คะแนนสม่ำเสมอ แต่มี Outlier", case3)
+                    case3 = len(bias_df[bias_df["BIAS_DETECTION"] == "case 3: ให้คะแนนไม่สม่ำเสมอ | ไม่มี Outlier"])
+                    st.metric("case 3", case3)
 
                 with col4:
-                    case4 = len(bias_df[bias_df["BIAS_DETECTION"] == "ไม่พบความผิดปกติ"])
-                    st.metric("ไม่พบความผิดปกติ", case4)
+                    case4 = len(bias_df[bias_df["BIAS_DETECTION"] == "case 4: ให้คะแนนสม่ำเสมอ | ไม่มี Outlier"])
+                    st.metric("case 4", case4)
                 
                 # แสดงตาราง Bias
                 st.dataframe(
                     bias_df[[
-                        'Appraiser Name', 'evaluation_time_count', 'score_timeline',
-                        'trend_pattern', 'outlier_freq', 'BIAS_DETECTION',
+                        'Appraiser Name', 'evaluation_time_count', 'score_timeline', 'outlier_freq', 'BIAS_DETECTION',
                     ]],
                     use_container_width=True
                 )
